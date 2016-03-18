@@ -10,14 +10,14 @@
  */
 function like_views_data() {
 
-  $data['views']['table']['group'] = t('Like');
-  $data['views']['table']['join'] = array(
+  $data['like']['table']['group'] = t('Like');
+  $data['like']['table']['join'] = array(
     // #global is a special flag which allows a table to appear all the time.
     '#global' => array(),
   );
 
 
-  $data['views']['target_entity_title_views_field'] = array(
+  $data['like']['target_entity_title_views_field'] = array(
     'title' => t('Target Entity Title'),
     'help' => t('Providing target entity title that user has liked.'),
     'field' => array(
@@ -25,7 +25,7 @@ function like_views_data() {
     ),
   );
 
-  $data['views']['target_entity_view_views_field'] = array(
+  $data['like']['target_entity_view_views_field'] = array(
     'title' => t('Target Entity View'),
     'help' => t('Providing target entity view.'),
     'field' => array(
