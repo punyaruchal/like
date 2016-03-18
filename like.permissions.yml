@@ -1,0 +1,11 @@
+like_like:
+  title: 'Like the content'
+  description: 'Allow user like the content.'
+
+like_unlike:
+  title: 'Unlike the content'
+  description: 'Allow user unlike the content.'
+
+like_view:
+  title: 'View content likes'
+  description: 'Allow user view content likes.'

@@ -1,0 +1,44 @@
+
+like.config_form:
+  path: '/admin/config/like'
+  defaults:
+    _form: '\Drupal\like\Form\ConfigForm'
+    _title: 'Configuration likes'
+  requirements:
+    _permission: 'access administration pages'
+  options:
+    _admin_route: TRUE
+
+
+# In order to to create pages it is necessary to define routes for them.
+# A route maps a URL path to a controller. It defines with what function
+# or method will be called when a URL is accessed.
+# If the user accesses http://drupal8.dev/like/{entity}/{id}, the routing
+# system will look for a route with that path. In this case it will find a
+# match, and execute the _controller callback. In this case the callback is
+# defined as a classname
+# ("\Drupal\like\Controller\LikeController")
+# and a method ("like").
+like.like_controller_like:
+  path: 'like/{entity}/{id}'
+  defaults:
+    _controller: '\Drupal\like\Controller\LikeController::like'
+    _title: 'Like'
+  requirements:
+    _permission: 'like_like'
+# In order to to create pages it is necessary to define routes for them.
+# A route maps a URL path to a controller. It defines with what function
+# or method will be called when a URL is accessed.
+# If the user accesses http://drupal8.dev/unlike/{entity}/{id}, the routing
+# system will look for a route with that path. In this case it will find a
+# match, and execute the _controller callback. In this case the callback is
+# defined as a classname
+# ("\Drupal\like\Controller\LikeController")
+# and a method ("unlike").
+like.like_controller_unlike:
+  path: 'unlike/{entity}/{id}'
+  defaults:
+    _controller: '\Drupal\like\Controller\LikeController::unlike'
+    _title: 'Unlike'
+  requirements:
+    _permission: 'like_unlike'

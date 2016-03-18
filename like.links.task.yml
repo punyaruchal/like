@@ -1,0 +1,16 @@
+entity.like.canonical:
+  route_name: entity.like.canonical
+  base_route: entity.like.canonical
+  title: 'View'
+
+entity.like.edit_form:
+  route_name: entity.like.edit_form
+  base_route: entity.like.canonical
+  title: Edit
+
+entity.like.delete_form:
+  route_name:  entity.like.delete_form
+  base_route:  entity.like.canonical
+  title: Delete
+  weight: 10
+

@@ -1,0 +1,5 @@
+name: Like
+type: module
+description: Providing link to user to like the entity.
+core: 8.x
+package: Tabvn

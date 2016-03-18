@@ -1,0 +1,7 @@
+like.config_form:
+  title: 'Likes'
+  route_name: like.config_form
+  description: 'Configuration Likes.'
+  parent: system.admin_config_system
+  weight: 99
+

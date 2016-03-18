@@ -1,0 +1,451 @@
+<?php
+
+/**
+ * @file
+ * Contains like.module..
+ */
+
+use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Url;
+use Symfony\Component\HttpFoundation\Session\Session;
+
+/**
+ * Implements hook_help().
+ */
+function like_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    // Main module help for the like module.
+    case 'help.page.like':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('Providing link to user to like the entity.') . '</p>';
+      return $output;
+
+    default:
+  }
+}
+
+
+/**
+ * Implements of hook_entity_extra_field_info()
+ */
+function like_entity_extra_field_info() {
+  $extra = array();
+
+  $config = \Drupal::config('like.config');
+  $target_entiries = $config->get('target_entities');
+
+  if (!empty($target_entiries)) {
+    foreach ($target_entiries as $k => $v) {
+      $target_arr = explode(':', $k);
+      $entity_type = $target_arr[0];
+      $entity_bundle = $target_arr[1];
+      $extra[$entity_type][$entity_bundle]['display']['like'] = array(
+        'label' => t('Like'),
+        'description' => 'Like and Unlike Link',
+        'weight' => 0,
+        'visible' => FALSE,
+      );
+    }
+  }
+
+
+  return $extra;
+}
+
+/**
+ * Implements hook_entity_view().
+ *
+ */
+function like_entity_view(array &$build, EntityInterface $entity, EntityViewDisplayInterface $display, $view_mode) {
+  // Don't show on previews.
+  if ($entity->isNew()) {
+    return;
+  }
+  $config = \Drupal::config('like.config');
+  $target_entiries = $config->get('target_entities');
+
+  if (!empty($target_entiries) && $display->getComponent('like')) {
+    $target = $entity->getEntityTypeId() . ':' . $entity->bundle();
+    $build['like'] = like_get_link($target, $entity->id());
+  }
+}
+
+/**
+ * return ajax link for like and unlike
+ */
+
+function like_get_link($target, $id) {
+
+  $user = \Drupal::currentUser();
+  $action = like_get_link_action_type($target, $id);
+  if ($user->hasPermission('like_like') && $action == 'like') {
+    return like_build_link($action, $target, $id);
+  }
+  elseif ($user->hasPermission('like_unlike') && $action == 'unlike') {
+    return like_build_link($action, $target, $id);
+  }
+  else {
+    if ($user->hasPermission('like_view')) {
+
+      return like_build_view($target, $id);
+    }
+  }
+
+
+}
+
+
+/**
+ * get likes counts
+ */
+
+function like_get_count($entity) {
+  $like_numbers = 0;
+
+  $storage = \Drupal::entityManager()->getStorage('like');
+  $likes = $storage->getQuery()
+    ->condition('target_entity_id', $entity->id())
+    ->execute();
+
+  if (!empty($likes)) {
+    return count($likes);
+  }
+  return $like_numbers;
+}
+
+/**
+ * build content likes view
+ */
+
+function like_build_view($target, $id) {
+  $entity_arr = explode(':', $target);
+  $entity_type = $entity_arr[0];
+  $entity = \Drupal::entityManager()->getStorage($entity_type)->load($id);
+
+  if (!$entity) {
+    return;
+  }
+  $likes_count = like_get_count($entity);
+  $html = array(
+    '#type' => 'markup',
+    '#markup' => '<span class="like-wrapper likes-count">' . $likes_count . '</span>',
+  );
+  return $html;
+
+
+}
+
+/**
+ * Build the link widget
+ * @param string $action
+ * @param $target
+ * @param $id
+ * @return array
+ */
+function like_build_link($action = 'like', $target, $id) {
+
+  $user = \Drupal::currentUser();
+  $entity_arr = explode(':', $target);
+  $entity_type = $entity_arr[0];
+  $entity_bundle = $entity_arr[1];
+
+  $entity = \Drupal::entityManager()->getStorage($entity_type)->load($id);
+  $parameters = [
+    'entity' => $target,
+    'id' => $entity->id(),
+  ];
+  $url = Url::fromRoute('like.like_controller_like', $parameters);
+  $title = t('Like');
+  if ($action == 'unlike') {
+    $url = Url::fromRoute('like.like_controller_unlike', $parameters);
+    $title = t('Unlike');
+  }
+
+
+  $entity_type_id = $entity->getEntityType()->id();
+  $link = array(
+    '#type' => 'link',
+    '#title' => $title,
+    '#url' => $url,
+  );
+  $link['#attached']['library'] = 'core/drupal.ajax';
+  $link['#attributes']['class'][] = 'use-ajax';
+  $link['#attributes']['class'][] = $action;
+  $link['#attributes']['id'] = 'like-link-' . $entity_type_id . '-' . $id;
+  $link['#url']->setRouteParameter('_format', 'json');
+  if ($user->hasPermission('like_view')) {
+    $markup = array(
+      '#type' => 'markup',
+      '#markup' => '<span class="link-title">' . $title->render() . '</span><span class="likes-count"> ' . like_get_count($entity) . '</span>',
+    );
+    $link['#title'] = render($markup);
+
+  }
+
+
+  return $link;
+}
+
+/**
+ * Get the user IP addresss
+ */
+function like_get_current_user_ip() {
+
+  $client = @$_SERVER['HTTP_CLIENT_IP'];
+  $forward = @$_SERVER['HTTP_X_FORWARDED_FOR'];
+  $remote = $_SERVER['REMOTE_ADDR'];
+
+  if (filter_var($client, FILTER_VALIDATE_IP)) {
+    $ip = $client;
+  }
+  elseif (filter_var($forward, FILTER_VALIDATE_IP)) {
+    $ip = $forward;
+  }
+  else {
+    $ip = $remote;
+  }
+
+  return $ip;
+}
+
+/**
+ * Get user session ID
+ */
+
+function like_get_user_session_id() {
+  $session_manager = \Drupal::service('session_manager');
+  $session_id = $session_manager->getId();
+  $user = \Drupal::currentUser();
+  if ($user->isAnonymous() && !empty(like_get_cookie())) {
+    $session_id = like_get_cookie();
+  }
+  return $session_id;
+
+}
+
+
+/**
+ * Do like
+ */
+
+function like_do_like(AccountInterface $account = NULL, EntityInterface $entity) {
+  if (empty($account)) {
+    $account = \Drupal::currentUser();
+  }
+
+  $entity_type = $entity->getEntityType()->id();
+  $ip = like_get_current_user_ip();
+  $session_id = like_get_cookie();
+  if (!$session_id) {
+    $session_id = like_get_user_session_id();
+  }
+
+
+  $values = array(
+    'user_id' => $account->id(),
+    'target_entity_type' => $entity_type,
+    'target_entity_id' => $entity->id(),
+    'session_id' => $session_id,
+    'user_ip' => $ip,
+  );
+  $like = \Drupal::entityManager()->getStorage('like')->create($values);
+  $like->save();
+
+  // reset entity cache.
+  \Drupal::entityManager()
+    ->getViewBuilder($entity->getEntityTypeId())
+    ->resetCache([
+      $entity,
+    ]);
+
+
+  return $session_id;
+
+}
+
+
+/**
+ * Do unlike
+ */
+
+function like_do_unlike(AccountInterface $account = NULL, EntityInterface $entity) {
+  if (empty($account)) {
+    $account = \Drupal::currentUser();
+  }
+
+  $entity_type = $entity->getEntityType()->id();
+
+  $session_id = like_get_cookie();
+  if (!$session_id) {
+    $session_id = like_get_user_session_id();
+  }
+
+  $storage = \Drupal::entityManager()->getStorage('like');
+  $query = $storage->getQuery()
+    ->condition('target_entity_type', $entity_type)
+    ->condition('target_entity_id', $entity->id());
+  if (!$account->isAnonymous()) {
+    $query = $query->condition('user_id', $account->id());
+
+  }
+  else {
+    $cookie = like_get_cookie();
+    if (!$cookie) {
+      return;
+    }
+    $query = $query->condition('user_id', 0)
+      ->condition('session_id', $cookie);
+
+  }
+  $likes = $query->execute();
+
+  $entities = $storage->loadMultiple($likes);
+  $storage->delete($entities);
+
+
+  // reset entity cache.
+  \Drupal::entityManager()
+    ->getViewBuilder($entity->getEntityTypeId())
+    ->resetCache([
+      $entity,
+    ]);
+
+  return $session_id;
+
+}
+
+/**
+ * set cookie
+ */
+
+function like_set_cookie($session_id) {
+  // set cookie 7 days.
+
+  $session = new Session();
+  $session->set('like_session_id_storage', $session_id);
+
+}
+
+/**
+ * get cookie
+ */
+
+function like_get_cookie() {
+  $session = new Session();
+  $cookie = $session->get('like_session_id_storage');
+  if (isset($cookie) && !empty($cookie)) {
+    return $cookie;
+  }
+
+
+  return FALSE;
+}
+
+/**
+ * remove cookie
+ */
+
+function like_remove_cookie() {
+
+  $session = new Session();
+  $session->set('like_session_id_storage', '');
+  $session->remove('like_session_id_storage');
+
+}
+
+
+/**
+ * get link action type
+ */
+
+function like_get_link_action_type($target, $id) {
+
+
+  $action = 'like';
+  $user = \Drupal::currentUser();
+
+  $entity_arr = explode(':', $target);
+  $entity_type = $entity_arr[0];
+  $entity_bundle = $entity_arr[1];
+
+  $entity = \Drupal::entityManager()->getStorage($entity_type)->load($id);
+  if (!$entity) {
+    return;
+  }
+  $storage = \Drupal::entityManager()->getStorage('like');
+  $query = $storage->getQuery()
+    ->condition('target_entity_type', $entity_type)
+    ->condition('target_entity_id', $entity->id());
+
+  if (!$user->isAnonymous()) {
+    $query = $query->condition('user_id', $user->id());
+
+  }
+  else {
+    $cookie = like_get_cookie();
+    if (!$cookie) {
+      $action = 'like';
+      return 'like';
+
+    }
+    $query = $query->condition('user_id', $user->id())
+      ->condition('session_id', $cookie);
+  }
+
+  $likes = $query->execute();
+
+  if (!empty($likes)) {
+    // user has liked this content. now do display link unlike.
+    $action = 'unlike';
+  }
+
+  return $action;
+}
+
+/**
+ * Implements of hook_entity_delete()
+ */
+function like_entity_delete(Drupal\Core\Entity\EntityInterface $entity) {
+  //@todo delete likes belong to entity deleted.
+}
+
+
+/**
+ * Implements hook_user_cancel().
+ */
+function like_user_cancel($edit, $account, $method) {
+
+  like_remove_from_user($account);
+}
+
+
+/**
+ * Implements hook_user_delete().
+ */
+function like_user_delete(UserInterface $account) {
+
+  like_remove_from_user($account);
+
+}
+
+/**
+ * Remove all likes from user account.
+ */
+function like_remove_from_user(UserInterface $account) {
+  $storage = \Drupal::entityManager()->getStorage('like');
+  $likes = $storage->getQuery()
+    ->condition('user_id', $account->id())
+    ->execute();
+
+  if (!empty($likes)) {
+    $entities = $storage->loadMultiple($likes);
+    $storage->delete($entities);
+  }
+
+}
+
+
