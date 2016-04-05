@@ -5,12 +5,14 @@
  * Contains like.module..
  */
 
+use Drupal\Component\Utility\Html;
 use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Routing\RouteMatchInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Url;
-use Symfony\Component\HttpFoundation\Session\Session;
+use Drupal\views\Plugin\views\PluginBase;
+use Drupal\views\ViewExecutable;
 
 /**
  * Implements hook_help().
@@ -67,10 +69,12 @@ function like_entity_view(array &$build, EntityInterface $entity, EntityViewDisp
   }
   $config = \Drupal::config('like.config');
   $target_entiries = $config->get('target_entities');
-
   if (!empty($target_entiries) && $display->getComponent('like')) {
     $target = $entity->getEntityTypeId() . ':' . $entity->bundle();
-    $build['like'] = like_get_link($target, $entity->id());
+    if (in_array($target, $target_entiries)) {
+      $build['like'] = like_get_link($target, $entity->id());
+    }
+
   }
 }
 
@@ -154,19 +158,27 @@ function like_build_link($action = 'like', $target, $id) {
   $entity_bundle = $entity_arr[1];
 
   $entity = \Drupal::entityManager()->getStorage($entity_type)->load($id);
+  $html_id = uniqid('like-id-' . $id);
+  $html_id = Html::getId($html_id);
+
+  $token = \Drupal::csrfToken()->get();
   $parameters = [
     'entity' => $target,
     'id' => $entity->id(),
+    'html_id' => $html_id,
+    'token' => $token,
   ];
-  $url = Url::fromRoute('like.like_controller_like', $parameters);
+
   $title = t('Like');
   if ($action == 'unlike') {
     $url = Url::fromRoute('like.like_controller_unlike', $parameters);
     $title = t('Unlike');
   }
+  else {
+    $url = Url::fromRoute('like.like_controller_like', $parameters);
+  }
 
 
-  $entity_type_id = $entity->getEntityType()->id();
   $link = array(
     '#type' => 'link',
     '#title' => $title,
@@ -174,8 +186,11 @@ function like_build_link($action = 'like', $target, $id) {
   );
   $link['#attached']['library'] = 'core/drupal.ajax';
   $link['#attributes']['class'][] = 'use-ajax';
+  $link['#attributes']['class'][] = 'like-wrapper';
   $link['#attributes']['class'][] = $action;
-  $link['#attributes']['id'] = 'like-link-' . $entity_type_id . '-' . $id;
+
+
+  $link['#attributes']['id'] = $html_id;
   $link['#url']->setRouteParameter('_format', 'json');
   if ($user->hasPermission('like_view')) {
     $markup = array(
@@ -217,11 +232,19 @@ function like_get_current_user_ip() {
  */
 
 function like_get_user_session_id() {
-  $session_manager = \Drupal::service('session_manager');
-  $session_id = $session_manager->getId();
+  //$session_manager = \Drupal::service('session_manager');
+  //$session_id = $session_manager->getId();
+
+  $session_id = uniqid();
   $user = \Drupal::currentUser();
-  if ($user->isAnonymous() && !empty(like_get_cookie())) {
-    $session_id = like_get_cookie();
+  if ($user->isAnonymous()) {
+    if (!empty(like_get_cookie())) {
+      $session_id = like_get_cookie();
+    }
+    else {
+      like_set_cookie($session_id);
+    }
+
   }
   return $session_id;
 
@@ -232,7 +255,12 @@ function like_get_user_session_id() {
  * Do like
  */
 
-function like_do_like(AccountInterface $account = NULL, EntityInterface $entity) {
+function like_do_like(AccountInterface $account = NULL, EntityInterface $entity, $token = '') {
+
+  if (!\Drupal::csrfToken()->validate($token)) {
+    return;
+  }
+
   if (empty($account)) {
     $account = \Drupal::currentUser();
   }
@@ -272,7 +300,11 @@ function like_do_like(AccountInterface $account = NULL, EntityInterface $entity)
  * Do unlike
  */
 
-function like_do_unlike(AccountInterface $account = NULL, EntityInterface $entity) {
+function like_do_unlike(AccountInterface $account = NULL, EntityInterface $entity, $token = '') {
+
+  if (!\Drupal::csrfToken()->validate($token)) {
+    return;
+  }
   if (empty($account)) {
     $account = \Drupal::currentUser();
   }
@@ -323,10 +355,7 @@ function like_do_unlike(AccountInterface $account = NULL, EntityInterface $entit
  */
 
 function like_set_cookie($session_id) {
-  // set cookie 7 days.
-
-  $session = new Session();
-  $session->set('like_session_id_storage', $session_id);
+  setcookie('like_session_id_storage', $session_id, time() + (86400 * 7), "/"); // 86400 = 1 day
 
 }
 
@@ -335,8 +364,8 @@ function like_set_cookie($session_id) {
  */
 
 function like_get_cookie() {
-  $session = new Session();
-  $cookie = $session->get('like_session_id_storage');
+
+  $cookie = isset($_COOKIE['like_session_id_storage']) ? $_COOKIE['like_session_id_storage'] : FALSE;
   if (isset($cookie) && !empty($cookie)) {
     return $cookie;
   }
@@ -351,9 +380,7 @@ function like_get_cookie() {
 
 function like_remove_cookie() {
 
-  $session = new Session();
-  $session->set('like_session_id_storage', '');
-  $session->remove('like_session_id_storage');
+  setcookie("like_session_id_storage", "", time() - 3600);
 
 }
 
@@ -446,6 +473,18 @@ function like_remove_from_user(UserInterface $account) {
     $storage->delete($entities);
   }
 
+}
+
+/**
+ * Implements hook_views_query_substitutions().
+ *
+ */
+function like_views_query_substitutions(ViewExecutable $view) {
+  $substitutions = array(
+      '***CURRENT_SESSION_ID***' => like_get_cookie(),
+    ) + PluginBase::queryLanguageSubstitutions();
+
+  return $substitutions;
 }
 
 

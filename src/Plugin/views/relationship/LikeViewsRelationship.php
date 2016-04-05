@@ -57,7 +57,7 @@ class LikeViewsRelationship extends RelationshipPluginBase {
         // Add in the SID from Session API for anonymous users.
         $this->definition['extra'][] = [
           'field' => 'session_id',
-          'value' => '***FLAG_CURRENT_USER_SID***',
+          'value' => '***CURRENT_SESSION_ID***',
           'numeric' => TRUE,
         ];
       }

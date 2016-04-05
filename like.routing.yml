@@ -20,7 +20,7 @@ like.config_form:
 # ("\Drupal\like\Controller\LikeController")
 # and a method ("like").
 like.like_controller_like:
-  path: 'like/{entity}/{id}'
+  path: 'like/{entity}/{id}/{html_id}'
   defaults:
     _controller: '\Drupal\like\Controller\LikeController::like'
     _title: 'Like'
@@ -36,7 +36,7 @@ like.like_controller_like:
 # ("\Drupal\like\Controller\LikeController")
 # and a method ("unlike").
 like.like_controller_unlike:
-  path: 'unlike/{entity}/{id}'
+  path: 'unlike/{entity}/{id}/{html_id}'
   defaults:
     _controller: '\Drupal\like\Controller\LikeController::unlike'
     _title: 'Unlike'

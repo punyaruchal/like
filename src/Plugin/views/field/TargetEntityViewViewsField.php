@@ -51,14 +51,27 @@ class TargetEntityViewViewsField extends FieldPluginBase {
   public function buildOptionsForm(&$form, FormStateInterface $form_state) {
     parent::buildOptionsForm($form, $form_state);
 
+    $storage = \Drupal::entityManager()->getStorage('entity_view_mode');
+    $query = $storage->getQuery()
+      ->condition('targetEntityType', 'node')
+      ->execute();
+
+    $views_modes = $storage->loadMultiple($query);
+
+    $node_view_modes = array();
+
+    if (!empty($views_modes)) {
+      foreach ($views_modes as $view_mode) {
+        $key = str_replace('node.', '', $view_mode->id());
+        $node_view_modes[$key] = $view_mode->label();
+      }
+    }
+
     $form['view_mode'] = array(
       '#type' => 'select',
       '#title' => t('View mode'),
       '#default_value' => $this->options['view_mode'],
-      '#options' => array(
-        'teaser' => t('Teaser'),
-        'full' => t('Full'),
-      ),
+      '#options' => $node_view_modes,
     );
   }
 
