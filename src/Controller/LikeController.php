@@ -12,6 +12,7 @@ use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\ReplaceCommand;
 use Drupal\Core\Controller\ControllerBase;
 
+
 /**
  * Class LikeController.
  *
@@ -34,7 +35,7 @@ class LikeController extends ControllerBase {
   public function like($entity, $id, $html_id, $token = '') {
 
     if (empty($token)) {
-      $token = isset($_GET['token']) ? $_GET['token'] : '';
+      $token = \Drupal::request()->query->get('token');
     }
     $user = $this->currentUser();
     $entity_arr = explode(':', $entity);
@@ -42,7 +43,24 @@ class LikeController extends ControllerBase {
     $object = $this->entityManager()->getStorage($entity_type)->load($id);
     if ($object) {
       try {
-        $session_id = like_do_like($user, $object, $token);
+
+        if ($user->isAnonymous()) {
+          // skip for Anonymous user
+          $session_id = like_do_like($user, $object, $token);
+        }
+        else {
+          if (\Drupal::csrfToken()->validate($token, $html_id)) {
+            $session_id = like_do_like($user, $object, $token);
+          }
+          else {
+            $session_id = like_get_cookie();
+            if (!$session_id) {
+              $session_id = like_get_user_session_id();
+            }
+          }
+        }
+
+
       } catch (\LogicException $e) {
         // Fail silently and return the updated link.
       }
@@ -61,16 +79,32 @@ class LikeController extends ControllerBase {
   public function unlike($entity, $id, $html_id, $token = '') {
 
     if (empty($token)) {
-      $token = isset($_GET['token']) ? $_GET['token'] : '';
+      $token = \Drupal::request()->query->get('token');
     }
-    
+
     $user = $this->currentUser();
     $entity_arr = explode(':', $entity);
     $entity_type = $entity_arr[0];
     $object = $this->entityManager()->getStorage($entity_type)->load($id);
     if ($object) {
       try {
-        $session_id = like_do_unlike($user, $object, $token);
+
+        if ($user->isAnonymous()) {
+          // skip for Anonymous user
+          $session_id = like_do_unlike($user, $object, $token);
+        }
+        else {
+          if (\Drupal::csrfToken()->validate($token, $html_id)) {
+            $session_id = like_do_unlike($user, $object, $token);
+          }
+          else {
+            $session_id = like_get_cookie();
+            if (!$session_id) {
+              $session_id = like_get_user_session_id();
+            }
+          }
+        }
+
       } catch (\LogicException $e) {
         // Fail silently and return the updated link.
       }
@@ -90,9 +124,9 @@ class LikeController extends ControllerBase {
 
     $link = like_get_link($target, $id);
 
-
+    $new_html_id = $link['#attributes']['id'];
     $link_id = '#' . $html_id;
-    $token = \Drupal::csrfToken()->get();
+    $token = \Drupal::csrfToken()->get($new_html_id);
     $link['#url']->setRouteParameter('token', $token);
 
     // Create a new JQuery Replace command to update the link display.

@@ -161,7 +161,7 @@ function like_build_link($action = 'like', $target, $id) {
   $html_id = uniqid('like-id-' . $id);
   $html_id = Html::getId($html_id);
 
-  $token = \Drupal::csrfToken()->get();
+  $token = \Drupal::csrfToken()->get($html_id);
   $parameters = [
     'entity' => $target,
     'id' => $entity->id(),
@@ -255,11 +255,8 @@ function like_get_user_session_id() {
  * Do like
  */
 
-function like_do_like(AccountInterface $account = NULL, EntityInterface $entity, $token = '') {
+function like_do_like(AccountInterface $account = NULL, EntityInterface $entity) {
 
-  if (!\Drupal::csrfToken()->validate($token)) {
-    return;
-  }
 
   if (empty($account)) {
     $account = \Drupal::currentUser();
@@ -305,11 +302,8 @@ function like_do_like(AccountInterface $account = NULL, EntityInterface $entity,
  * Do unlike
  */
 
-function like_do_unlike(AccountInterface $account = NULL, EntityInterface $entity, $token = '') {
+function like_do_unlike(AccountInterface $account = NULL, EntityInterface $entity) {
 
-  if (!\Drupal::csrfToken()->validate($token)) {
-    return;
-  }
   if (empty($account)) {
     $account = \Drupal::currentUser();
   }
@@ -375,6 +369,8 @@ function like_set_cookie($session_id) {
 function like_get_cookie() {
 
   $cookie = isset($_COOKIE['like_session_id_storage']) ? $_COOKIE['like_session_id_storage'] : FALSE;
+
+
   if (isset($cookie) && !empty($cookie)) {
     return $cookie;
   }
@@ -540,6 +536,5 @@ function like_views_query_substitutions(ViewExecutable $view) {
 
   return $substitutions;
 }
-
 
 
