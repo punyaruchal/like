@@ -265,6 +265,11 @@ function like_do_like(AccountInterface $account = NULL, EntityInterface $entity,
     $account = \Drupal::currentUser();
   }
 
+  if (like_check($entity, $account)) {
+    // user has liked this content
+    // then do nothing;
+    return;
+  }
   $entity_type = $entity->getEntityType()->id();
   $ip = like_get_current_user_ip();
   $session_id = like_get_cookie();
@@ -309,6 +314,10 @@ function like_do_unlike(AccountInterface $account = NULL, EntityInterface $entit
     $account = \Drupal::currentUser();
   }
 
+  if (!like_check($entity, $account)) {
+    return;
+    // user has not like this content
+  }
   $entity_type = $entity->getEntityType()->id();
 
   $session_id = like_get_cookie();
@@ -433,6 +442,51 @@ function like_get_link_action_type($target, $id) {
   return $action;
 }
 
+
+/**
+ * check user like a content or not TRUE is like, FALSE is not like yet
+ */
+
+function like_check($entity, AccountInterface $user = NULL) {
+
+  if (empty($account)) {
+    $user = \Drupal::currentUser();
+  }
+
+
+  if (!$entity) {
+    return FALSE;
+  }
+  $storage = \Drupal::entityManager()->getStorage('like');
+  $query = $storage->getQuery()
+    ->condition('target_entity_type', $entity->getEntityTypeId())
+    ->condition('target_entity_id', $entity->id());
+
+  if (!$user->isAnonymous()) {
+    $query = $query->condition('user_id', $user->id());
+
+  }
+  else {
+    $cookie = like_get_cookie();
+    if (!$cookie) {
+      return FALSE;
+
+    }
+    $query = $query->condition('user_id', $user->id())
+      ->condition('session_id', $cookie);
+  }
+
+  $likes = $query->execute();
+
+  if (!empty($likes)) {
+    return TRUE;
+  }
+
+  return FALSE;
+
+
+}
+
 /**
  * Implements of hook_entity_delete()
  */
@@ -486,5 +540,6 @@ function like_views_query_substitutions(ViewExecutable $view) {
 
   return $substitutions;
 }
+
 
 
